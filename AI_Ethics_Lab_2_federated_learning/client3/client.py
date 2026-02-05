@@ -1,22 +1,40 @@
+import socket
+import pickle
+import struct
 import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
-import sys
+import os
 
-# Arguments
-CLIENT_ID = sys.argv[1]          # client1 / client2 / client3
-NOISE_STD = float(sys.argv[2])   # e.g. 0.0, 0.1, 0.5, 1.0
+# ---------------- Message framing helpers ----------------
+def send_msg(sock, obj):
+    data = pickle.dumps(obj)
+    sock.sendall(struct.pack(">I", len(data)) + data)
 
-DATA_PATH = f"../data/{CLIENT_ID}.pt"
-MODEL_PATH = "../server/global_model.pt"
-OUT_PATH = f"{CLIENT_ID}_weights.pt"
+def recvall(sock, n):
+    data = b""
+    while len(data) < n:
+        packet = sock.recv(n - len(data))
+        if not packet:
+            return None
+        data += packet
+    return data
 
-LOCAL_EPOCHS = 1
-BATCH_SIZE = 64
-LR = 0.01
+def recv_msg(sock):
+    raw_len = recvall(sock, 4)
+    if not raw_len:
+        return None
+    msg_len = struct.unpack(">I", raw_len)[0]
+    return pickle.loads(recvall(sock, msg_len))
 
-# Simple MLP model
+# ---------------- Client identity ----------------
+CLIENT_ID = os.path.basename(os.path.dirname(os.path.abspath(__file__)))
+
+HOST = "127.0.0.1"
+PORT = 5000
+
+# ---------------- Model ----------------
 class Net(nn.Module):
     def __init__(self):
         super().__init__()
@@ -28,34 +46,47 @@ class Net(nn.Module):
         x = torch.relu(self.fc1(x))
         return self.fc2(x)
 
-# Load dataset
-dataset = torch.load(DATA_PATH)
-loader = DataLoader(dataset, batch_size=BATCH_SIZE, shuffle=True)
+# ---------------- Setup ----------------
+DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data")
+dataset = torch.load(
+    os.path.join(DATA_DIR, f"{CLIENT_ID}.pt"),
+    weights_only=False
+)
 
-# Load global model
+loader = DataLoader(dataset, batch_size=64, shuffle=True)
+
+client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+client.connect((HOST, PORT))
+
+# Receive configuration
+config = recv_msg(client)
+NOISE_STD = config["noise"]
+ROUNDS = config["rounds"]
+
+print(f"{CLIENT_ID} connected | Noise std = {NOISE_STD}")
+
 model = Net()
-model.load_state_dict(torch.load(MODEL_PATH))
-
 criterion = nn.CrossEntropyLoss()
-optimizer = optim.SGD(model.parameters(), lr=LR)
+optimizer = optim.SGD(model.parameters(), lr=0.01)
 
-# Local training
-model.train()
-for _ in range(LOCAL_EPOCHS):
+# ---------------- Federated Learning Loop ----------------
+for _ in range(ROUNDS):
+    global_weights = recv_msg(client)
+    model.load_state_dict(global_weights)
+
+    model.train()
     for x, y in loader:
         optimizer.zero_grad()
         loss = criterion(model(x), y)
         loss.backward()
         optimizer.step()
 
-# Add Gaussian noise to weights (local DP)
-noisy_weights = {}
-for k, v in model.state_dict().items():
-    if NOISE_STD > 0:
+    # Add noise locally
+    noisy_weights = {}
+    for k, v in model.state_dict().items():
         noise = torch.normal(0, NOISE_STD, size=v.shape)
         noisy_weights[k] = v + noise
-    else:
-        noisy_weights[k] = v.clone()
 
-torch.save(noisy_weights, OUT_PATH)
-print(f"{CLIENT_ID}: sent weights with noise std = {NOISE_STD}")
+    send_msg(client, noisy_weights)
+
+client.close()

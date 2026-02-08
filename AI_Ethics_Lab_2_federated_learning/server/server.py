@@ -52,7 +52,7 @@ class Net(nn.Module):
 
 # ---------- Setup ----------
 model = Net()
-test_data = torch.load("../data/test.pt", weights_only=False)
+test_data = torch.load("./test.pt", weights_only=False)
 test_loader = DataLoader(test_data, batch_size=128)
 
 def evaluate(model):

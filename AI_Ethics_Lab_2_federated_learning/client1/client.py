@@ -47,7 +47,7 @@ class Net(nn.Module):
         return self.fc2(x)
 
 # ---------------- Setup ----------------
-DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data")
+DATA_DIR = './'
 dataset = torch.load(
     os.path.join(DATA_DIR, f"{CLIENT_ID}.pt"),
     weights_only=False

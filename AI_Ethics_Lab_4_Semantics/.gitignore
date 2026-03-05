@@ -2,3 +2,4 @@ data/*
 archive*.zip
 *.pt
 *.pdf
+__pycache__

@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+<title>Bitcoin Tweet Analyzer</title>
+
+<style>
+
+body{
+font-family: Arial, sans-serif;
+background:#0f172a;
+color:white;
+text-align:center;
+padding:40px;
+}
+
+.container{
+max-width:800px;
+margin:auto;
+background:#1e293b;
+padding:30px;
+border-radius:10px;
+box-shadow:0px 0px 15px rgba(0,0,0,0.5);
+}
+
+textarea{
+width:90%;
+height:120px;
+border-radius:8px;
+border:none;
+padding:10px;
+font-size:16px;
+}
+
+button{
+padding:12px 20px;
+margin-top:15px;
+border:none;
+border-radius:6px;
+background:#3b82f6;
+color:white;
+font-size:16px;
+cursor:pointer;
+}
+
+button:hover{
+background:#2563eb;
+}
+
+.result{
+margin-top:25px;
+text-align:left;
+}
+
+.score{
+margin-top:10px;
+padding:10px;
+background:#334155;
+border-radius:6px;
+}
+
+.examples{
+margin-top:30px;
+text-align:left;
+}
+
+.example{
+background:#334155;
+padding:10px;
+border-radius:6px;
+margin-top:8px;
+cursor:pointer;
+}
+
+.example:hover{
+background:#475569;
+}
+
+.bar{
+height:12px;
+background:#475569;
+border-radius:6px;
+margin-top:5px;
+}
+
+.fill{
+height:12px;
+border-radius:6px;
+}
+
+</style>
+
+</head>
+
+
+<body>
+
+<div class="container">
+
+<h1>Bitcoin Tweet Analyzer</h1>
+
+<p>Analyze sarcasm and sentiment in Bitcoin tweets.</p>
+
+<textarea id="text" placeholder="Type a tweet here..."></textarea>
+
+<br>
+
+<button onclick="analyze()">Analyze Tweet</button>
+
+<div class="result" id="result"></div>
+
+
+<div class="examples">
+
+<h3>Example Tweets</h3>
+
+<div class="example" onclick="fillExample(this)">
+Bitcoin going to the moon 🚀🚀🚀
+</div>
+
+<div class="example" onclick="fillExample(this)">
+Yeah BTC is totally stable 🙄
+</div>
+
+<div class="example" onclick="fillExample(this)">
+Great another market crash 😂
+</div>
+
+<div class="example" onclick="fillExample(this)">
+Bitcoin adoption growing steadily
+</div>
+
+<div class="example" onclick="fillExample(this)">
+Amazing investment opportunity 📉😂
+</div>
+
+</div>
+
+</div>
+
+
+<script>
+
+function fillExample(element){
+
+let text=element.innerText;
+
+document.getElementById("text").value=text;
+
+}
+
+
+function createBar(score){
+
+let percent=Math.abs(score)*100;
+
+let color="limegreen";
+
+if(score<0) color="tomato";
+if(Math.abs(score)<0.1) color="gold";
+
+return `
+<div class="bar">
+<div class="fill" style="width:${percent}%; background:${color}"></div>
+</div>
+`
+}
+
+
+async function analyze(){
+
+let text=document.getElementById("text").value;
+
+let response=await fetch("http://127.0.0.1:8000/analyze",{
+
+method:"POST",
+
+headers:{
+"Content-Type":"application/json"
+},
+
+body:JSON.stringify({text:text})
+
+})
+
+let data=await response.json()
+
+
+document.getElementById("result").innerHTML=
+
+`
+<h3>Results</h3>
+
+<div class="score">
+<b>Sarcasm Probability:</b> ${data.sarcasm_probability.toFixed(3)}
+${createBar(data.sarcasm_probability)}
+</div>
+
+<div class="score">
+<b>VADER Sentiment:</b> ${data.vader.toFixed(3)}
+${createBar(data.vader)}
+</div>
+
+<div class="score">
+<b>Emoji-VADER:</b> ${data.emoji_vader.toFixed(3)}
+${createBar(data.emoji_vader)}
+</div>
+
+<div class="score">
+<b>ES-VADER (Sarcasm Adjusted):</b> ${data.es_vader.toFixed(3)}
+${createBar(data.es_vader)}
+</div>
+`
+
+}
+
+</script>
+
+</body>
+
+</html>

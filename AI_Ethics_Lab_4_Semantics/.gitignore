@@ -3,3 +3,4 @@ archive*.zip
 *.pt
 *.pdf
 __pycache__
+*copy*
